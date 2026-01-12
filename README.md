@@ -1,6 +1,12 @@
 # Gdańsk Airport Flight Board - Home Assistant Integration
 
+[![GitHub Release](https://img.shields.io/github/release/proboszcz/ha-gdansk-airport.svg?style=flat-square)](https://github.com/proboszcz/ha-gdansk-airport/releases)
+[![License](https://img.shields.io/github/license/proboszcz/ha-gdansk-airport.svg?style=flat-square)](LICENSE)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square)](https://github.com/hacs/integration)
+
 Custom integration for Home Assistant that scrapes flight arrivals and departures data from Gdańsk Airport (airport.gdansk.pl) and provides it as sensors.
+
+**Current Version: 1.0.0** | [Changelog](CHANGELOG.md)
 
 ## Features
 
@@ -10,21 +16,52 @@ Custom integration for Home Assistant that scrapes flight arrivals and departure
 - ⏱️ **Real-time updates** - configurable refresh interval (2-60 minutes)
 - 🎯 **Smart filtering** - filter by airline, destination, time window
 - 🔄 **Automatic status detection** - landed, delayed, boarding, cancelled, etc.
+- 💾 **Smart caching** - maintains data freshness with 1-hour cache expiry
+- 📊 **Cache transparency** - sensors show if data is live or cached
 - 🌐 **Bilingual** - English and Polish translations
+
+## Data Freshness & Reliability
+
+This integration prioritizes data accuracy:
+
+- **Live Data First**: Always attempts to fetch fresh data from the airport website
+- **Smart Cache Fallback**: If the website is temporarily unavailable, uses cached data
+- **Cache Expiry**: Cached data is valid for maximum **1 hour**
+- **Transparency**: Sensors show `data_source: "live"` or `"cache"` with exact age
+- **No Stale Data**: Sensors become unavailable if cache expires (better than showing outdated information)
+
+This ensures you never see flight data that's more than 1 hour old!
 
 ## Installation
 
 ### HACS (Recommended)
 
-1. Add this repository as a custom repository in HACS
-2. Search for "Gdańsk Airport" in HACS
-3. Click Install
-4. Restart Home Assistant
+1. Open HACS in Home Assistant
+2. Click on "Integrations"
+3. Click the three dots in the top right corner
+4. Select "Custom repositories"
+5. Add `https://github.com/proboszcz/ha-gdansk-airport` as repository
+6. Select "Integration" as category
+7. Click "Add"
+8. Search for "Gdańsk Airport" in HACS
+9. Click "Install"
+10. Restart Home Assistant
 
 ### Manual Installation
 
-1. Copy the `custom_components/gdansk_airport` directory to your Home Assistant `config/custom_components` directory
-2. Restart Home Assistant
+1. Download the [latest release](https://github.com/proboszcz/ha-gdansk-airport/releases/latest)
+2. Extract the `custom_components/gdansk_airport` directory to your Home Assistant `config/custom_components` directory
+3. Restart Home Assistant
+
+The directory structure should look like:
+```
+config/
+  custom_components/
+    gdansk_airport/
+      __init__.py
+      manifest.json
+      ...
+```
 
 ## Configuration
 
@@ -76,6 +113,23 @@ Each flight includes:
 - `flight_number` - Flight number
 - `status` - Flight status (landed, delayed, boarding, etc.)
 - `delay_minutes` - Delay in minutes (if applicable)
+
+### Sensor Attributes
+
+Each sensor includes additional attributes:
+
+- `flights` - Array of flight objects with full details
+- `next_flight` - Next upcoming flight details
+- `last_updated` - ISO 8601 timestamp of last update
+- `data_source` - "live" or "cache" (shows if using cached data)
+- `cache_age_seconds` - Age of cached data in seconds (if using cache)
+- `cache_age_minutes` - Age of cached data in minutes (if using cache)
+
+**Cache Behavior:**
+- Fresh data is marked as `data_source: "live"`
+- Cached data (during temporary outages) shows actual age
+- Cache is valid for maximum 1 hour
+- Sensors become unavailable if cache expires (better than showing stale data)
 
 ## Example Automation
 
