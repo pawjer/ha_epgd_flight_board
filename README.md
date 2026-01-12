@@ -149,7 +149,41 @@ automation:
             is delayed by {{ states.sensor.gdansk_airport_next_departure.attributes.delay_minutes }} minutes.
 ```
 
-## Example Lovelace Card
+## Example Output
+
+When displayed in Home Assistant, the boards would look like this:
+
+**Arrivals Board Example:**
+```
+📥 Arrivals (15)
+
+| Time     | From              | Flight   | Status    |
+|----------|-------------------|----------|-----------|
+| 22:50    | Barcelona el prat | W6 1706  | landed    |
+| 23:10    | Stavanger         | W6 1756  | landed    |
+| 23:35 → 00:32 | Bergen       | W6 1758  | delayed (+57min) |
+| 23:55    | Alicante          | FR 1426  | landed    |
+| 05:45    | London Luton      | W6 1602  | expected  |
+| 06:10    | Oslo              | W6 1754  | expected  |
+| 06:25    | Dortmund          | W6 1616  | expected  |
+```
+
+**Departures Board Example:**
+```
+📤 Departures (12)
+
+| Time  | To                | Flight   | Airline  | Status         |
+|-------|-------------------|----------|----------|----------------|
+| 05:40 | Warszawa          | LO3828   | LOT      | check_in       |
+| 05:45 | Aberdeen          | W6 1617  | WIZZ AIR | check_in       |
+| 06:00 | Monachium         | LH 1647  | LUFTHANSA| check_in       |
+| 06:05 | Madryt            | W6 1701  | WIZZ AIR | check_in       |
+| 06:30 | Amsterdam         | KL 1302  | KLM      | check_in       |
+```
+
+## Example Lovelace Cards
+
+### Simple Next Flights Card
 
 ```yaml
 type: markdown
@@ -165,6 +199,99 @@ content: |
   - To: {{ state_attr('sensor.gdansk_airport_next_departure', 'destination') }}
   - Flight: {{ state_attr('sensor.gdansk_airport_next_departure', 'flight_number') }}
   - Status: {{ state_attr('sensor.gdansk_airport_next_departure', 'status') }}
+```
+
+### Full Arrivals Board
+
+```yaml
+type: markdown
+content: |
+  ## 📥 Arrivals ({{ states('sensor.gdansk_airport_arrivals') }})
+  {% if state_attr('sensor.gdansk_airport_arrivals', 'data_source') == 'cache' %}
+  ⚠️ *Cached data ({{ state_attr('sensor.gdansk_airport_arrivals', 'cache_age_minutes') }} min old)*
+  {% endif %}
+
+  | Time | From | Flight | Status |
+  |------|------|--------|--------|
+  {%- for flight in state_attr('sensor.gdansk_airport_arrivals', 'flights')[:10] %}
+  | {{ flight.scheduled_time }}{% if flight.expected_time %} → {{ flight.expected_time }}{% endif %} | {{ flight.origin }} | {{ flight.flight_number }} | {{ flight.status }}{% if flight.delay_minutes %} (+{{ flight.delay_minutes }}min){% endif %} |
+  {%- endfor %}
+```
+
+### Full Departures Board
+
+```yaml
+type: markdown
+content: |
+  ## 📤 Departures ({{ states('sensor.gdansk_airport_departures') }})
+  {% if state_attr('sensor.gdansk_airport_departures', 'data_source') == 'cache' %}
+  ⚠️ *Cached data ({{ state_attr('sensor.gdansk_airport_departures', 'cache_age_minutes') }} min old)*
+  {% endif %}
+
+  | Time | To | Flight | Airline | Status |
+  |------|------|--------|---------|--------|
+  {%- for flight in state_attr('sensor.gdansk_airport_departures', 'flights')[:10] %}
+  | {{ flight.scheduled_time }}{% if flight.expected_time %} → {{ flight.expected_time }}{% endif %} | {{ flight.destination }} | {{ flight.flight_number }} | {{ flight.airline }} | {{ flight.status }}{% if flight.delay_minutes %} (+{{ flight.delay_minutes }}min){% endif %} |
+  {%- endfor %}
+```
+
+### Combined Airport Board
+
+```yaml
+type: vertical-stack
+cards:
+  - type: markdown
+    content: |
+      # ✈️ Gdańsk Airport
+      Last updated: {{ state_attr('sensor.gdansk_airport_arrivals', 'last_updated') }}
+
+  - type: markdown
+    title: 📥 Next Arrivals
+    content: |
+      {%- for flight in state_attr('sensor.gdansk_airport_arrivals', 'flights')[:5] %}
+      **{{ flight.scheduled_time }}** - {{ flight.origin }}
+      `{{ flight.flight_number }}` - {{ flight.airline }}
+      Status: {{ flight.status | upper }}{% if flight.delay_minutes %} (+{{ flight.delay_minutes }}min){% endif %}
+
+      {%- endfor %}
+
+  - type: markdown
+    title: 📤 Next Departures
+    content: |
+      {%- for flight in state_attr('sensor.gdansk_airport_departures', 'flights')[:5] %}
+      **{{ flight.scheduled_time }}** - {{ flight.destination }}
+      `{{ flight.flight_number }}` - {{ flight.airline }}
+      Status: {{ flight.status | upper }}{% if flight.delay_minutes %} (+{{ flight.delay_minutes }}min){% endif %}
+
+      {%- endfor %}
+```
+
+### Entities Card with Attributes
+
+```yaml
+type: entities
+title: Gdańsk Airport Stats
+entities:
+  - entity: sensor.gdansk_airport_arrivals
+    name: Total Arrivals
+    icon: mdi:airplane-landing
+  - entity: sensor.gdansk_airport_departures
+    name: Total Departures
+    icon: mdi:airplane-takeoff
+  - type: attribute
+    entity: sensor.gdansk_airport_arrivals
+    attribute: data_source
+    name: Data Source
+  - type: attribute
+    entity: sensor.gdansk_airport_arrivals
+    attribute: cache_age_minutes
+    name: Cache Age (minutes)
+  - entity: sensor.gdansk_airport_next_arrival
+    name: Next Arrival
+    icon: mdi:airplane-landing
+  - entity: sensor.gdansk_airport_next_departure
+    name: Next Departure
+    icon: mdi:airplane-takeoff
 ```
 
 ## Flight Statuses
