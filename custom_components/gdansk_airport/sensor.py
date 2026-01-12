@@ -7,7 +7,6 @@ import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
-    SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
 )
@@ -86,7 +85,6 @@ SENSOR_TYPES: tuple[GdanskAirportSensorEntityDescription, ...] = (
         translation_key=SENSOR_NEXT_ARRIVAL,
         name="Next Arrival",
         icon="mdi:airplane-landing",
-        device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data: (
             data.get("next_arrival").scheduled_time
             if data.get("next_arrival")
@@ -103,7 +101,6 @@ SENSOR_TYPES: tuple[GdanskAirportSensorEntityDescription, ...] = (
         translation_key=SENSOR_NEXT_DEPARTURE,
         name="Next Departure",
         icon="mdi:airplane-takeoff",
-        device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data: (
             data.get("next_departure").scheduled_time
             if data.get("next_departure")
