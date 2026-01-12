@@ -21,6 +21,7 @@ from .const import (
     CONF_TIME_WINDOW,
     DEFAULT_HIDE_CANCELLED,
     DEFAULT_HIDE_LANDED,
+    DEFAULT_MAX_CACHE_AGE_HOURS,
     DEFAULT_MAX_FLIGHTS,
     DEFAULT_TIME_WINDOW,
     DIRECTION_ARRIVALS,
@@ -58,6 +59,10 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.direction = direction
         self.session: aiohttp.ClientSession = async_get_clientsession(hass)
+
+        # Cache management
+        self._last_successful_update: datetime | None = None
+        self._max_cache_age = timedelta(hours=DEFAULT_MAX_CACHE_AGE_HOURS)
 
         # Options (can be updated via options flow)
         self.max_flights: int = DEFAULT_MAX_FLIGHTS
@@ -177,6 +182,27 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         return upcoming[0]
 
+    def _is_cache_valid(self) -> bool:
+        """Check if cached data is still valid.
+
+        Returns:
+            True if cache is valid and not too old
+        """
+        if not self.data or not self._last_successful_update:
+            return False
+
+        cache_age = datetime.now() - self._last_successful_update
+        is_valid = cache_age < self._max_cache_age
+
+        if not is_valid:
+            _LOGGER.warning(
+                "Cached data is too old (age: %s, max: %s)",
+                cache_age,
+                self._max_cache_age,
+            )
+
+        return is_valid
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API.
 
@@ -206,12 +232,18 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             next_arrival = self._get_next_flight(arrivals) if arrivals else None
             next_departure = self._get_next_flight(departures) if departures else None
 
+            # Update timestamp
+            now = datetime.now()
+            self._last_successful_update = now
+
             data = {
                 DIRECTION_ARRIVALS: arrivals,
                 DIRECTION_DEPARTURES: departures,
                 "next_arrival": next_arrival,
                 "next_departure": next_departure,
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": now.isoformat(),
+                "data_source": "live",
+                "cache_age_seconds": 0,
             }
 
             _LOGGER.debug(
@@ -223,26 +255,48 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return data
 
         except aiohttp.ClientError as err:
-            # If we have cached data, log error but don't fail
-            if self.data:
-                _LOGGER.warning("Failed to update data, using cached data: %s", err)
-                return self.data
-
-            _LOGGER.error("Failed to fetch data: %s", err)
-            raise UpdateFailed(f"Failed to fetch data: {err}") from err
+            return self._handle_update_error("HTTP error", err)
 
         except asyncio.TimeoutError as err:
-            if self.data:
-                _LOGGER.warning("Timeout updating data, using cached data")
-                return self.data
-
-            _LOGGER.error("Timeout fetching data")
-            raise UpdateFailed("Timeout fetching data") from err
+            return self._handle_update_error("Timeout", err)
 
         except Exception as err:
-            if self.data:
-                _LOGGER.warning("Unexpected error, using cached data: %s", err)
-                return self.data
-
             _LOGGER.exception("Unexpected error fetching data: %s", err)
-            raise UpdateFailed(f"Unexpected error: {err}") from err
+            return self._handle_update_error("Unexpected error", err)
+
+    def _handle_update_error(self, error_type: str, error: Exception) -> dict[str, Any]:
+        """Handle update errors with cache fallback.
+
+        Args:
+            error_type: Type of error (for logging)
+            error: The exception that occurred
+
+        Returns:
+            Cached data with metadata
+
+        Raises:
+            UpdateFailed: If no valid cache available
+        """
+        # Check if we have valid cached data
+        if self._is_cache_valid():
+            cache_age = datetime.now() - self._last_successful_update
+            cache_age_seconds = int(cache_age.total_seconds())
+
+            _LOGGER.warning(
+                "%s: %s - Using cached data (age: %s)",
+                error_type,
+                error,
+                cache_age,
+            )
+
+            # Return cached data with updated metadata
+            cached_data = self.data.copy()
+            cached_data["data_source"] = "cache"
+            cached_data["cache_age_seconds"] = cache_age_seconds
+            cached_data["cache_age_minutes"] = cache_age_seconds // 60
+
+            return cached_data
+
+        # No valid cache - fail the update
+        _LOGGER.error("%s: %s - No valid cached data available", error_type, error)
+        raise UpdateFailed(f"{error_type}: {error}") from error

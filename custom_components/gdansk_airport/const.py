@@ -38,6 +38,7 @@ DEFAULT_MAX_FLIGHTS: Final = 20
 DEFAULT_TIME_WINDOW: Final = 24  # hours
 DEFAULT_HIDE_LANDED: Final = False
 DEFAULT_HIDE_CANCELLED: Final = True
+DEFAULT_MAX_CACHE_AGE_HOURS: Final = 1  # Maximum age for cached data (flight data changes frequently)
 
 # Limits
 MIN_SCAN_INTERVAL: Final = 2

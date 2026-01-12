@@ -57,6 +57,9 @@ SENSOR_TYPES: tuple[GdanskAirportSensorEntityDescription, ...] = (
             "next_flight": data.get("next_arrival").to_dict()
             if data.get("next_arrival")
             else None,
+            "data_source": data.get("data_source", "unknown"),
+            "cache_age_seconds": data.get("cache_age_seconds"),
+            "cache_age_minutes": data.get("cache_age_minutes"),
         },
         should_create_fn=lambda direction: direction
         in (DIRECTION_ARRIVALS, DIRECTION_BOTH),
@@ -76,6 +79,9 @@ SENSOR_TYPES: tuple[GdanskAirportSensorEntityDescription, ...] = (
             "next_flight": data.get("next_departure").to_dict()
             if data.get("next_departure")
             else None,
+            "data_source": data.get("data_source", "unknown"),
+            "cache_age_seconds": data.get("cache_age_seconds"),
+            "cache_age_minutes": data.get("cache_age_minutes"),
         },
         should_create_fn=lambda direction: direction
         in (DIRECTION_DEPARTURES, DIRECTION_BOTH),
