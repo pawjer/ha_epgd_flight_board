@@ -1,7 +1,7 @@
 # Gdańsk Airport Flight Board - Home Assistant Integration
 
-[![GitHub Release](https://img.shields.io/github/release/proboszcz/ha-gdansk-airport.svg?style=flat-square)](https://github.com/proboszcz/ha-gdansk-airport/releases)
-[![License](https://img.shields.io/github/license/proboszcz/ha-gdansk-airport.svg?style=flat-square)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/release/pawjer/ha_epgd_flight_board.svg?style=flat-square)](https://github.com/pawjer/ha_epgd_flight_board/releases)
+[![License](https://img.shields.io/github/license/pawjer/ha_epgd_flight_board.svg?style=flat-square)](LICENSE)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square)](https://github.com/hacs/integration)
 
 Custom integration for Home Assistant that scrapes flight arrivals and departures data from Gdańsk Airport (airport.gdansk.pl) and provides it as sensors.
@@ -40,7 +40,7 @@ This ensures you never see flight data that's more than 1 hour old!
 2. Click on "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
-5. Add `https://github.com/proboszcz/ha-gdansk-airport` as repository
+5. Add `https://github.com/pawjer/ha_epgd_flight_board` as repository
 6. Select "Integration" as category
 7. Click "Add"
 8. Search for "Gdańsk Airport" in HACS
@@ -49,7 +49,7 @@ This ensures you never see flight data that's more than 1 hour old!
 
 ### Manual Installation
 
-1. Download the [latest release](https://github.com/proboszcz/ha-gdansk-airport/releases/latest)
+1. Download the [latest release](https://github.com/pawjer/ha_epgd_flight_board/releases/latest)
 2. Extract the `custom_components/gdansk_airport` directory to your Home Assistant `config/custom_components` directory
 3. Restart Home Assistant
 
@@ -218,7 +218,7 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-If you encounter any issues, please [open an issue](https://github.com/proboszcz/ha-gdansk-airport/issues) on GitHub.
+If you encounter any issues, please [open an issue](https://github.com/pawjer/ha_epgd_flight_board/issues) on GitHub.
 
 ## Disclaimer
 

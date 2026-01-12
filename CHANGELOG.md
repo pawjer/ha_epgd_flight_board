@@ -52,4 +52,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 30-second request timeout
 - User-Agent spoofing to avoid blocking
 
-[1.0.0]: https://github.com/proboszcz/ha-gdansk-airport/releases/tag/v1.0.0
+[1.0.0]: https://github.com/pawjer/ha_epgd_flight_board/releases/tag/v1.0.0

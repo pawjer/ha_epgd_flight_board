@@ -1,13 +1,13 @@
 {
   "domain": "gdansk_airport",
   "name": "Gdańsk Airport",
-  "codeowners": ["@proboszcz"],
+  "codeowners": ["@pawjer"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/proboszcz/ha-gdansk-airport",
+  "documentation": "https://github.com/pawjer/ha_epgd_flight_board",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/proboszcz/ha-gdansk-airport/issues",
+  "issue_tracker": "https://github.com/pawjer/ha_epgd_flight_board/issues",
   "requirements": ["beautifulsoup4>=4.12.0"],
   "version": "1.0.0"
 }
