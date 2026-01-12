@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Lotnisko Gdańsk",
+        "description": "Konfiguracja tablicy lotów",
+        "data": {
+          "name": "Nazwa",
+          "direction": "Kierunek lotów",
+          "scan_interval": "Interwał odświeżania (minuty)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie można połączyć ze stroną lotniska",
+      "unknown": "Nieznany błąd"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje",
+        "data": {
+          "max_flights": "Maksymalna liczba lotów",
+          "time_window_hours": "Okno czasowe (godziny)",
+          "hide_landed": "Ukryj wylądowane/wystartowane",
+          "hide_cancelled": "Ukryj odwołane",
+          "airlines_filter": "Filtruj linie lotnicze (po przecinku)",
+          "destinations_filter": "Filtruj kierunki (po przecinku)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "direction": {
+      "options": {
+        "arrivals": "Przyloty",
+        "departures": "Odloty",
+        "both": "Oba"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "arrivals": {
+        "name": "Przyloty"
+      },
+      "departures": {
+        "name": "Odloty"
+      },
+      "next_arrival": {
+        "name": "Następny przylot"
+      },
+      "next_departure": {
+        "name": "Następny odlot"
+      }
+    }
+  }
+}

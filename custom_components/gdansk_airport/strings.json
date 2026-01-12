@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Gdańsk Airport",
+        "description": "Configure flight board integration",
+        "data": {
+          "name": "Name",
+          "direction": "Flight direction",
+          "scan_interval": "Update interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to airport website",
+      "unknown": "Unknown error"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "max_flights": "Maximum flights to display",
+          "time_window_hours": "Time window (hours)",
+          "hide_landed": "Hide landed/departed flights",
+          "hide_cancelled": "Hide cancelled flights",
+          "airlines_filter": "Filter airlines (comma separated)",
+          "destinations_filter": "Filter destinations (comma separated)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "direction": {
+      "options": {
+        "arrivals": "Arrivals",
+        "departures": "Departures",
+        "both": "Both"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "arrivals": {
+        "name": "Arrivals"
+      },
+      "departures": {
+        "name": "Departures"
+      },
+      "next_arrival": {
+        "name": "Next Arrival"
+      },
+      "next_departure": {
+        "name": "Next Departure"
+      }
+    }
+  }
+}
