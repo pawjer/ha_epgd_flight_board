@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -14,6 +15,9 @@ from .const import CONF_TRACKED_FLIGHTS, DOMAIN
 from .coordinator import GdanskAirportCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# Flight number validation pattern (e.g., "W6 1706", "LO 123", "FR1234")
+FLIGHT_NUMBER_PATTERN = re.compile(r"^[A-Z0-9]{2}\s*\d{1,4}[A-Z]?$", re.IGNORECASE)
 
 # Service names
 SERVICE_TRACK_FLIGHT = "track_flight"
@@ -33,6 +37,18 @@ UNTRACK_FLIGHT_SCHEMA = vol.Schema(
 )
 
 
+def validate_flight_number(flight_number: str) -> bool:
+    """Validate flight number format.
+
+    Args:
+        flight_number: Flight number to validate
+
+    Returns:
+        True if valid format, False otherwise
+    """
+    return bool(FLIGHT_NUMBER_PATTERN.match(flight_number.strip()))
+
+
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up services for Gdańsk Airport integration.
 
@@ -46,7 +62,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         Args:
             call: Service call data
         """
-        flight_number = call.data["flight_number"].strip().upper()
+        flight_number = call.data["flight_number"].strip()
+
+        # Validate flight number format
+        if not validate_flight_number(flight_number):
+            _LOGGER.error(
+                "Invalid flight number format: %s (expected format: 'W6 1706', 'LO 123')",
+                flight_number,
+            )
+            return
+
+        flight_number = flight_number.upper()
 
         # Get all config entries for this integration
         entries = hass.config_entries.async_entries(DOMAIN)
@@ -61,12 +87,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 "coordinator"
             ]
 
-            # Add to coordinator's tracked flights
-            coordinator._tracked_flights.add(flight_number)
+            # Add to coordinator's tracked flights (using public method)
+            coordinator.add_tracked_flight(flight_number)
 
             # Update config entry options
             new_options = dict(entry.options)
-            tracked_set = coordinator._tracked_flights
+            tracked_set = coordinator.get_tracked_flights()
             new_options[CONF_TRACKED_FLIGHTS] = ", ".join(sorted(tracked_set))
 
             hass.config_entries.async_update_entry(entry, options=new_options)
@@ -79,7 +105,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         Args:
             call: Service call data
         """
-        flight_number = call.data["flight_number"].strip().upper()
+        flight_number = call.data["flight_number"].strip()
+
+        # Validate flight number format
+        if not validate_flight_number(flight_number):
+            _LOGGER.error(
+                "Invalid flight number format: %s (expected format: 'W6 1706', 'LO 123')",
+                flight_number,
+            )
+            return
+
+        flight_number = flight_number.upper()
 
         # Get all config entries for this integration
         entries = hass.config_entries.async_entries(DOMAIN)
@@ -94,12 +130,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 "coordinator"
             ]
 
-            # Remove from coordinator's tracked flights
-            coordinator._tracked_flights.discard(flight_number)
+            # Remove from coordinator's tracked flights (using public method)
+            coordinator.remove_tracked_flight(flight_number)
 
             # Update config entry options
             new_options = dict(entry.options)
-            tracked_set = coordinator._tracked_flights
+            tracked_set = coordinator.get_tracked_flights()
             new_options[CONF_TRACKED_FLIGHTS] = ", ".join(sorted(tracked_set))
 
             hass.config_entries.async_update_entry(entry, options=new_options)
