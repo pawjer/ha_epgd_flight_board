@@ -1,0 +1,23 @@
+track_flight:
+  name: Track flight
+  description: Start tracking a specific flight number to receive events about its status changes.
+  fields:
+    flight_number:
+      name: Flight number
+      description: Flight number to track (e.g., "W6 1706", "LO 123")
+      required: true
+      example: "W6 1706"
+      selector:
+        text:
+
+untrack_flight:
+  name: Untrack flight
+  description: Stop tracking a specific flight number.
+  fields:
+    flight_number:
+      name: Flight number
+      description: Flight number to stop tracking (e.g., "W6 1706", "LO 123")
+      required: true
+      example: "W6 1706"
+      selector:
+        text:
