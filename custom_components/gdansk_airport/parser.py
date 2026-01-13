@@ -59,6 +59,10 @@ class Flight:
 def _calculate_delay(scheduled_time: str, expected_time: str | None) -> int | None:
     """Calculate delay in minutes between scheduled and expected time.
 
+    Note: expected_time from airport website always indicates a delay (or on-time).
+    The website does not provide expected_time for early arrivals.
+    If expected < scheduled in simple comparison, it means midnight crossing.
+
     Args:
         scheduled_time: Scheduled time in HH:MM format
         expected_time: Expected time in HH:MM format or None
@@ -79,7 +83,8 @@ def _calculate_delay(scheduled_time: str, expected_time: str | None) -> int | No
         scheduled = today.replace(hour=sched_h, minute=sched_m)
         expected = today.replace(hour=exp_h, minute=exp_m)
 
-        # Handle midnight crossing (e.g., 23:50 -> 00:30)
+        # Handle midnight crossing (e.g., 23:50 -> 00:20)
+        # If expected < scheduled, it means the delay caused midnight crossing
         if expected < scheduled:
             expected += timedelta(days=1)
 

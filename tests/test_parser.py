@@ -52,6 +52,21 @@ class TestCalculateDelay:
         result = _calculate_delay("23:50", "00:20")
         assert result == 30
 
+    def test_midnight_crossing_large_delay(self):
+        """Test large delay crossing midnight."""
+        result = _calculate_delay("23:00", "02:30")
+        assert result == 210  # 3.5 hours
+
+    def test_large_delay(self):
+        """Test large delay without midnight crossing."""
+        result = _calculate_delay("10:00", "13:30")
+        assert result == 210
+
+    def test_small_delay(self):
+        """Test small delay."""
+        result = _calculate_delay("14:30", "14:45")
+        assert result == 15
+
     def test_none_expected_time(self):
         """Test when expected time is None."""
         result = _calculate_delay("10:00", None)
