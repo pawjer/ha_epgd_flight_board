@@ -122,6 +122,30 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             f.strip().upper() for f in tracked.split(",") if f.strip()
         }
 
+    def add_tracked_flight(self, flight_number: str) -> None:
+        """Add a flight to tracking list.
+
+        Args:
+            flight_number: Flight number to track (will be normalized to uppercase)
+        """
+        self._tracked_flights.add(flight_number.upper())
+
+    def remove_tracked_flight(self, flight_number: str) -> None:
+        """Remove a flight from tracking list.
+
+        Args:
+            flight_number: Flight number to stop tracking (will be normalized to uppercase)
+        """
+        self._tracked_flights.discard(flight_number.upper())
+
+    def get_tracked_flights(self) -> set[str]:
+        """Get copy of tracked flights set.
+
+        Returns:
+            Set of tracked flight numbers (uppercase)
+        """
+        return self._tracked_flights.copy()
+
     def _filter_flights(self, flights: list[Flight]) -> list[Flight]:
         """Filter flights based on options.
 
@@ -404,7 +428,7 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self.hass.bus.fire(event_type, event_data)
 
-        _LOGGER.info(
+        _LOGGER.debug(
             "Fired event %s for flight %s (status: %s)",
             event_type,
             flight.flight_number,
