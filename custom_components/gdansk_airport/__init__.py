@@ -90,8 +90,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # Remove coordinator
+    # Remove coordinator and cleanup
     if unload_ok:
+        coordinator: GdanskAirportCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+
+        # Close curl_cffi session
+        await coordinator.session.close()
+
         hass.data[DOMAIN].pop(entry.entry_id)
 
         # Unload services when last instance is removed

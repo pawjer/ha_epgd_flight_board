@@ -6,9 +6,8 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any
 
-import aiohttp
+from curl_cffi.requests import AsyncSession
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -70,7 +69,7 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=scan_interval,
         )
         self.direction = direction
-        self.session: aiohttp.ClientSession = async_get_clientsession(hass)
+        self.session: AsyncSession = AsyncSession()
 
         # Cache management
         self._last_successful_update: datetime | None = None
@@ -311,9 +310,6 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
             return data
-
-        except aiohttp.ClientError as err:
-            return self._handle_update_error("HTTP error", err)
 
         except asyncio.TimeoutError as err:
             return self._handle_update_error("Timeout", err)

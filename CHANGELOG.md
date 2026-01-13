@@ -21,11 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `gdansk_airport.untrack_flight` - Remove flight from tracking list
 - Event data includes: flight_number, airline, scheduled_time, expected_time, status, delay_minutes, origin/destination, old_status
 
+### Fixed
+- **CRITICAL: Website Connectivity** - Replaced aiohttp with curl_cffi to bypass bot detection
+- Airport website blocks standard Python HTTP clients (aiohttp, httpx, requests)
+- curl_cffi uses libcurl and successfully connects (same as curl command)
+- Integration now works reliably in all environments
+
 ### Technical
 - New `state_tracker.py` module with FlightStateTracker class
 - Extended coordinator with event dispatching logic
 - Services registered/unregistered automatically with integration lifecycle
 - Comprehensive unit tests for state tracking (11 tests)
+- **HTTP client**: Switched from aiohttp to curl_cffi (bypasses TLS fingerprinting)
+- Added connectivity solution documentation
 
 ## [1.0.0] - 2026-01-13
 

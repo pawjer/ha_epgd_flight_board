@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-import aiohttp
 from bs4 import BeautifulSoup
+from curl_cffi.requests import AsyncSession
 
 from .const import (
     DIRECTION_ARRIVALS,
@@ -218,21 +218,20 @@ def _parse_html(html: str, direction: str) -> list[Flight]:
 
 
 async def fetch_flights(
-    session: aiohttp.ClientSession,
+    session: AsyncSession,
     direction: str,
 ) -> list[Flight]:
     """Fetch and parse flights from airport website.
 
     Args:
-        session: aiohttp ClientSession
+        session: curl_cffi AsyncSession
         direction: "arrivals" or "departures"
 
     Returns:
         List of Flight objects
 
     Raises:
-        aiohttp.ClientError: On HTTP errors
-        asyncio.TimeoutError: On timeout
+        Exception: On HTTP errors or timeout
     """
     url = URL_ARRIVALS if direction == DIRECTION_ARRIVALS else URL_DEPARTURES
 
@@ -241,37 +240,33 @@ async def fetch_flights(
     headers = {"User-Agent": USER_AGENT}
 
     try:
-        async with asyncio.timeout(REQUEST_TIMEOUT):
-            async with session.get(url, headers=headers) as response:
-                response.raise_for_status()
-                html = await response.text()
+        response = await session.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        html = response.text
 
-                flights = _parse_html(html, direction)
-                _LOGGER.info(
-                    "Successfully fetched %d %s", len(flights), direction
-                )
-                return flights
+        flights = _parse_html(html, direction)
+        _LOGGER.info(
+            "Successfully fetched %d %s", len(flights), direction
+        )
+        return flights
 
     except asyncio.TimeoutError:
         _LOGGER.error("Timeout fetching %s from %s", direction, url)
         raise
-    except aiohttp.ClientError as err:
-        _LOGGER.error("HTTP error fetching %s: %s", direction, err)
-        raise
     except Exception as err:
-        _LOGGER.error("Unexpected error fetching %s: %s", direction, err)
+        _LOGGER.error("HTTP error fetching %s: %s", direction, err)
         raise
 
 
 async def fetch_all_flights(
-    session: aiohttp.ClientSession,
+    session: AsyncSession,
     fetch_arrivals: bool = True,
     fetch_departures: bool = True,
 ) -> dict[str, list[Flight]]:
     """Fetch both arrivals and departures.
 
     Args:
-        session: aiohttp ClientSession
+        session: curl_cffi AsyncSession
         fetch_arrivals: Whether to fetch arrivals
         fetch_departures: Whether to fetch departures
 

@@ -5,14 +5,13 @@ import asyncio
 import logging
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
+from curl_cffi.requests import AsyncSession
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     CONF_AIRLINES_FILTER,
@@ -58,41 +57,30 @@ async def validate_connection(hass: HomeAssistant) -> bool:
         True if connection is successful
 
     Raises:
-        aiohttp.ClientError: On connection error
+        Exception: On connection error or timeout
     """
-    session = async_get_clientsession(hass)
-
-    try:
-        # Try to fetch arrivals page
-        _LOGGER.debug("Validating connection to airport website: %s", URL_ARRIVALS)
-        await asyncio.wait_for(
-            fetch_flights(session, DIRECTION_ARRIVALS),
-            timeout=30.0,
-        )
-        _LOGGER.debug("Connection validation successful")
-        return True
-    except asyncio.TimeoutError as err:
-        _LOGGER.error(
-            "Timeout connecting to airport website %s after 30s: %s",
-            URL_ARRIVALS,
-            type(err).__name__,
-        )
-        raise
-    except aiohttp.ClientError as err:
-        _LOGGER.error(
-            "Failed to connect to airport website %s: %s - %s",
-            URL_ARRIVALS,
-            type(err).__name__,
-            str(err) or "No error message available",
-        )
-        raise
-    except Exception as err:
-        _LOGGER.exception(
-            "Unexpected error connecting to airport website %s: %s",
-            URL_ARRIVALS,
-            type(err).__name__,
-        )
-        raise
+    async with AsyncSession() as session:
+        try:
+            # Try to fetch arrivals page
+            _LOGGER.debug("Validating connection to airport website: %s", URL_ARRIVALS)
+            await fetch_flights(session, DIRECTION_ARRIVALS)
+            _LOGGER.debug("Connection validation successful")
+            return True
+        except asyncio.TimeoutError as err:
+            _LOGGER.error(
+                "Timeout connecting to airport website %s after 30s: %s",
+                URL_ARRIVALS,
+                type(err).__name__,
+            )
+            raise
+        except Exception as err:
+            _LOGGER.error(
+                "Failed to connect to airport website %s: %s - %s",
+                URL_ARRIVALS,
+                type(err).__name__,
+                str(err) or "No error message available",
+            )
+            raise
 
 
 class GdanskAirportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -133,12 +121,9 @@ class GdanskAirportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except asyncio.TimeoutError:
                 _LOGGER.warning("Timeout connecting to airport website during setup")
                 errors["base"] = "timeout_connect"
-            except aiohttp.ClientError as err:
-                _LOGGER.warning("Client error connecting to airport website: %s", type(err).__name__)
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.warning("Error connecting to airport website: %s", type(err).__name__)
                 errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception during config flow setup")
-                errors["base"] = "unknown"
 
         # Show form
         data_schema = vol.Schema(
