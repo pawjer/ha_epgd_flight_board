@@ -6,10 +6,11 @@
 
 Custom integration for Home Assistant that scrapes flight arrivals and departures data from Gdańsk Airport (airport.gdansk.pl) and provides it as sensors.
 
-**Current Version: 1.0.0** | [Changelog](CHANGELOG.md)
+**Current Version: 2.0.0** | [Changelog](CHANGELOG.md)
 
 ## Features
 
+### Core Features (v1.0)
 - 📥 **Arrivals sensor** - tracks incoming flights
 - 📤 **Departures sensor** - tracks outgoing flights
 - 🔜 **Next flight sensors** - dedicated sensors for next arrival/departure
@@ -19,6 +20,12 @@ Custom integration for Home Assistant that scrapes flight arrivals and departure
 - 💾 **Smart caching** - maintains data freshness with 1-hour cache expiry
 - 📊 **Cache transparency** - sensors show if data is live or cached
 - 🌐 **Bilingual** - English and Polish translations
+
+### Events System (v2.0)
+- 🔔 **Flight status events** - automatic Home Assistant events for flight changes
+- 🎯 **Selective tracking** - track specific flights or all flights
+- 🛠️ **Dynamic services** - add/remove tracked flights via services
+- 📡 **8 event types** - landed, departed, delayed, cancelled, boarding, gate_closed, final_call, status_changed
 
 ## Data Freshness & Reliability
 
@@ -31,6 +38,117 @@ This integration prioritizes data accuracy:
 - **No Stale Data**: Sensors become unavailable if cache expires (better than showing outdated information)
 
 This ensures you never see flight data that's more than 1 hour old!
+
+## Events System (v2.0)
+
+The integration can fire Home Assistant events when flight statuses change, enabling powerful event-based automations.
+
+### Event Types
+
+The following events are fired automatically when a flight's status changes:
+
+- `gdansk_airport_flight_landed` - Flight has landed
+- `gdansk_airport_flight_departed` - Flight has departed
+- `gdansk_airport_flight_delayed` - Flight is delayed
+- `gdansk_airport_flight_cancelled` - Flight is cancelled
+- `gdansk_airport_flight_boarding` - Boarding has started
+- `gdansk_airport_flight_gate_closed` - Gate has closed
+- `gdansk_airport_flight_final_call` - Final boarding call
+- `gdansk_airport_flight_status_changed` - Generic event (always fired on any status change)
+
+### Event Data
+
+Each event includes the following data:
+
+```json
+{
+  "flight_number": "W6 1706",
+  "airline": "WIZZ AIR",
+  "scheduled_time": "22:50",
+  "expected_time": "23:20",
+  "status": "delayed",
+  "delay_minutes": 30,
+  "direction": "arrivals",
+  "origin": "Barcelona",
+  "old_status": "expected"
+}
+```
+
+### Configuration
+
+Events are configured in the integration's **Options** page:
+
+- **Enable flight events** - Master toggle for event system
+- **Fire events for all flights** - If enabled, events fire for all flights; if disabled, only for tracked flights
+- **Tracked flights** - Comma-separated list of flight numbers to track (e.g., "W6 1706, LO 123")
+
+### Services
+
+Use services to dynamically add/remove flights from tracking:
+
+#### `gdansk_airport.track_flight`
+
+Start tracking a specific flight number.
+
+```yaml
+service: gdansk_airport.track_flight
+data:
+  flight_number: "W6 1706"
+```
+
+#### `gdansk_airport.untrack_flight`
+
+Stop tracking a specific flight number.
+
+```yaml
+service: gdansk_airport.untrack_flight
+data:
+  flight_number: "W6 1706"
+```
+
+### Example: Event-Based Automation
+
+```yaml
+automation:
+  - alias: "Notify when tracked flight is delayed"
+    trigger:
+      - platform: event
+        event_type: gdansk_airport_flight_delayed
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.flight_number == 'W6 1706' }}"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Flight Delayed"
+          message: >
+            Flight {{ trigger.event.data.flight_number }} to {{ trigger.event.data.destination }}
+            is delayed by {{ trigger.event.data.delay_minutes }} minutes.
+            New time: {{ trigger.event.data.expected_time }}
+
+  - alias: "Track flight when I leave home"
+    trigger:
+      - platform: state
+        entity_id: person.me
+        to: "not_home"
+    action:
+      - service: gdansk_airport.track_flight
+        data:
+          flight_number: "W6 1706"
+
+  - alias: "Announce flight landing"
+    trigger:
+      - platform: event
+        event_type: gdansk_airport_flight_landed
+    action:
+      - service: tts.google_translate_say
+        target:
+          entity_id: media_player.living_room
+        data:
+          message: >
+            Flight {{ trigger.event.data.flight_number }} from {{ trigger.event.data.origin }}
+            has landed.
+```
 
 ## Installation
 
@@ -79,12 +197,18 @@ config/
 
 After setup, you can configure additional options:
 
+**Display Options:**
 - **Maximum flights**: Limit number of flights displayed (5-50, default: 20)
 - **Time window**: Show flights within X hours (1-48, default: 24)
 - **Hide landed/departed**: Hide completed flights
 - **Hide cancelled**: Hide cancelled flights
 - **Airlines filter**: Comma-separated list of airlines (e.g., "WIZZ AIR, RYANAIR")
 - **Destinations filter**: Comma-separated list of destinations (e.g., "London, Barcelona")
+
+**Events Options (v2.0):**
+- **Enable flight events**: Enable/disable event firing for flight status changes
+- **Fire events for all flights**: Track all flights or only specific ones
+- **Tracked flights**: Comma-separated list of flight numbers to track (e.g., "W6 1706, LO 123")
 
 ## Sensors
 
