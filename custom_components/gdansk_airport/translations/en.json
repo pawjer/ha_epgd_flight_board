@@ -13,6 +13,7 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to airport website",
+      "timeout_connect": "Timeout connecting to airport website (check your network connection)",
       "unknown": "Unknown error"
     }
   },
