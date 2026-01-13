@@ -18,11 +18,14 @@ from .const import (
     CONF_AIRLINES_FILTER,
     CONF_DESTINATIONS_FILTER,
     CONF_DIRECTION,
+    CONF_EVENTS_ALL_FLIGHTS,
+    CONF_EVENTS_ENABLED,
     CONF_HIDE_CANCELLED,
     CONF_HIDE_LANDED,
     CONF_MAX_FLIGHTS,
     CONF_SCAN_INTERVAL,
     CONF_TIME_WINDOW,
+    CONF_TRACKED_FLIGHTS,
     DEFAULT_HIDE_CANCELLED,
     DEFAULT_HIDE_LANDED,
     DEFAULT_MAX_FLIGHTS,
@@ -215,6 +218,19 @@ class GdanskAirportOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_DESTINATIONS_FILTER,
                     default=options.get(CONF_DESTINATIONS_FILTER, ""),
+                ): str,
+                # Events configuration (v2)
+                vol.Optional(
+                    CONF_EVENTS_ENABLED,
+                    default=options.get(CONF_EVENTS_ENABLED, False),
+                ): bool,
+                vol.Optional(
+                    CONF_EVENTS_ALL_FLIGHTS,
+                    default=options.get(CONF_EVENTS_ALL_FLIGHTS, False),
+                ): bool,
+                vol.Optional(
+                    CONF_TRACKED_FLIGHTS,
+                    default=options.get(CONF_TRACKED_FLIGHTS, ""),
                 ): str,
             }
         )
