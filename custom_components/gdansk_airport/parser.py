@@ -10,6 +10,7 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 from curl_cffi.requests import AsyncSession
+from curl_cffi.requests.exceptions import Timeout as CurlTimeout
 
 from .const import (
     DIRECTION_ARRIVALS,
@@ -25,6 +26,10 @@ _LOGGER = logging.getLogger(__name__)
 
 # Timeout for HTTP requests
 REQUEST_TIMEOUT = 30
+
+# Retry configuration
+MAX_RETRIES = 2
+RETRY_DELAY = 3  # Initial retry delay in seconds
 
 
 @dataclass
@@ -226,7 +231,7 @@ async def fetch_flights(
     session: AsyncSession,
     direction: str,
 ) -> list[Flight]:
-    """Fetch and parse flights from airport website.
+    """Fetch and parse flights from airport website with retry logic.
 
     Args:
         session: curl_cffi AsyncSession
@@ -236,31 +241,61 @@ async def fetch_flights(
         List of Flight objects
 
     Raises:
-        Exception: On HTTP errors or timeout
+        Exception: On HTTP errors or timeout after all retries
     """
     url = URL_ARRIVALS if direction == DIRECTION_ARRIVALS else URL_DEPARTURES
 
     _LOGGER.debug("Fetching flights from %s", url)
 
-    headers = {"User-Agent": USER_AGENT}
+    # When using impersonate="chrome120", curl_cffi automatically sets appropriate
+    # browser headers. We should NOT override them as it breaks the fingerprinting.
+    # Only add headers that aren't part of standard Chrome behavior.
+    headers = {
+        "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7",  # Prefer Polish
+    }
 
-    try:
-        response = await session.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-        html = response.text
+    last_error = None
 
-        flights = _parse_html(html, direction)
-        _LOGGER.info(
-            "Successfully fetched %d %s", len(flights), direction
-        )
-        return flights
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            if attempt > 0:
+                delay = RETRY_DELAY * (2 ** (attempt - 1))  # Exponential backoff
+                _LOGGER.warning(
+                    "Retry attempt %d/%d for %s after %d seconds",
+                    attempt,
+                    MAX_RETRIES,
+                    direction,
+                    delay,
+                )
+                await asyncio.sleep(delay)
 
-    except asyncio.TimeoutError:
-        _LOGGER.error("Timeout fetching %s from %s", direction, url)
-        raise
-    except Exception as err:
-        _LOGGER.error("HTTP error fetching %s: %s", direction, err)
-        raise
+            # Make request (session already configured with timeout, redirects, verify)
+            response = await session.get(url, headers=headers)
+            response.raise_for_status()
+            html = response.text
+
+            flights = _parse_html(html, direction)
+            _LOGGER.info(
+                "Successfully fetched %d %s", len(flights), direction
+            )
+            return flights
+
+        except CurlTimeout as err:
+            last_error = err
+            _LOGGER.warning("Timeout fetching %s from %s (attempt %d/%d)", direction, url, attempt + 1, MAX_RETRIES + 1)
+        except Exception as err:
+            last_error = err
+            _LOGGER.warning("Error fetching %s (attempt %d/%d): %s", direction, attempt + 1, MAX_RETRIES + 1, err)
+
+    # All retries exhausted
+    if last_error:
+        _LOGGER.error("Failed to fetch %s after %d attempts: %s", direction, MAX_RETRIES + 1, last_error)
+        raise last_error
+    else:
+        # Should never happen, but handle gracefully
+        error_msg = f"Failed to fetch {direction} after {MAX_RETRIES + 1} attempts with no error captured"
+        _LOGGER.error(error_msg)
+        raise RuntimeError(error_msg)
 
 
 async def fetch_all_flights(

@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 from curl_cffi.requests import AsyncSession
+from curl_cffi.requests.exceptions import Timeout as CurlTimeout
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -69,7 +70,15 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=scan_interval,
         )
         self.direction = direction
-        self.session: AsyncSession = AsyncSession()
+        # Use Chrome impersonation to better bypass bot detection
+        # Additional options for better connectivity
+        self.session: AsyncSession = AsyncSession(
+            impersonate="chrome120",
+            verify=True,  # Verify SSL certificates
+            timeout=30,  # Default timeout for all requests
+            allow_redirects=True,  # Follow redirects
+            max_redirects=5,  # Limit redirect chains
+        )
 
         # Cache management
         self._last_successful_update: datetime | None = None
@@ -311,7 +320,7 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             return data
 
-        except asyncio.TimeoutError as err:
+        except CurlTimeout as err:
             return self._handle_update_error("Timeout", err)
 
         except Exception as err:

@@ -7,6 +7,7 @@ from typing import Any
 
 import voluptuous as vol
 from curl_cffi.requests import AsyncSession
+from curl_cffi.requests.exceptions import Timeout as CurlTimeout
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
@@ -59,16 +60,22 @@ async def validate_connection(hass: HomeAssistant) -> bool:
     Raises:
         Exception: On connection error or timeout
     """
-    async with AsyncSession() as session:
+    async with AsyncSession(
+        impersonate="chrome120",
+        verify=True,
+        timeout=30,
+        allow_redirects=True,
+        max_redirects=5,
+    ) as session:
         try:
             # Try to fetch arrivals page
             _LOGGER.debug("Validating connection to airport website: %s", URL_ARRIVALS)
             await fetch_flights(session, DIRECTION_ARRIVALS)
             _LOGGER.debug("Connection validation successful")
             return True
-        except asyncio.TimeoutError as err:
+        except CurlTimeout as err:
             _LOGGER.error(
-                "Timeout connecting to airport website %s after 30s: %s",
+                "Timeout connecting to airport website %s: %s",
                 URL_ARRIVALS,
                 type(err).__name__,
             )
@@ -118,7 +125,7 @@ class GdanskAirportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data=user_input,
                 )
 
-            except asyncio.TimeoutError:
+            except CurlTimeout:
                 _LOGGER.warning("Timeout connecting to airport website during setup")
                 errors["base"] = "timeout_connect"
             except Exception as err:  # pylint: disable=broad-except
