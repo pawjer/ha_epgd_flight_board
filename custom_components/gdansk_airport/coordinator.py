@@ -15,10 +15,13 @@ from .const import (
     CONF_AIRLINES_FILTER,
     CONF_DESTINATIONS_FILTER,
     CONF_DIRECTION,
+    CONF_EVENTS_ALL_FLIGHTS,
+    CONF_EVENTS_ENABLED,
     CONF_HIDE_CANCELLED,
     CONF_HIDE_LANDED,
     CONF_MAX_FLIGHTS,
     CONF_TIME_WINDOW,
+    CONF_TRACKED_FLIGHTS,
     DEFAULT_HIDE_CANCELLED,
     DEFAULT_HIDE_LANDED,
     DEFAULT_MAX_CACHE_AGE_HOURS,
@@ -28,9 +31,18 @@ from .const import (
     DIRECTION_BOTH,
     DIRECTION_DEPARTURES,
     DOMAIN,
+    EVENT_FLIGHT_BOARDING,
+    EVENT_FLIGHT_CANCELLED,
+    EVENT_FLIGHT_DELAYED,
+    EVENT_FLIGHT_DEPARTED,
+    EVENT_FLIGHT_FINAL_CALL,
+    EVENT_FLIGHT_GATE_CLOSED,
+    EVENT_FLIGHT_LANDED,
+    EVENT_FLIGHT_STATUS_CHANGED,
     FlightStatus,
 )
 from .parser import Flight, fetch_all_flights
+from .state_tracker import FlightStateTracker
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,6 +76,12 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_successful_update: datetime | None = None
         self._max_cache_age = timedelta(hours=DEFAULT_MAX_CACHE_AGE_HOURS)
 
+        # State tracking for events (v2)
+        self._state_tracker = FlightStateTracker()
+        self._tracked_flights: set[str] = set()
+        self._events_enabled: bool = False
+        self._events_all_flights: bool = False
+
         # Options (can be updated via options flow)
         self.max_flights: int = DEFAULT_MAX_FLIGHTS
         self.time_window_hours: int = DEFAULT_TIME_WINDOW
@@ -93,6 +111,16 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.destinations_filter = [
             d.strip().lower() for d in destinations.split(",") if d.strip()
         ]
+
+        # Events configuration (v2)
+        self._events_enabled = options.get(CONF_EVENTS_ENABLED, False)
+        self._events_all_flights = options.get(CONF_EVENTS_ALL_FLIGHTS, False)
+
+        # Parse tracked flights
+        tracked = options.get(CONF_TRACKED_FLIGHTS, "")
+        self._tracked_flights = {
+            f.strip().upper() for f in tracked.split(",") if f.strip()
+        }
 
     def _filter_flights(self, flights: list[Flight]) -> list[Flight]:
         """Filter flights based on options.
@@ -224,6 +252,12 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 fetch_departures=fetch_departures,
             )
 
+            # Process state changes for events (before filtering)
+            all_flights = (
+                result.get(DIRECTION_ARRIVALS, []) + result.get(DIRECTION_DEPARTURES, [])
+            )
+            self._process_state_changes(all_flights)
+
             # Filter flights
             arrivals = self._filter_flights(result.get(DIRECTION_ARRIVALS, []))
             departures = self._filter_flights(result.get(DIRECTION_DEPARTURES, []))
@@ -300,3 +334,110 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # No valid cache - fail the update
         _LOGGER.error("%s: %s - No valid cached data available", error_type, error)
         raise UpdateFailed(f"{error_type}: {error}") from error
+
+    def _get_event_type(self, new_status: FlightStatus) -> str | None:
+        """Map flight status to event type.
+
+        Args:
+            new_status: New flight status
+
+        Returns:
+            Event type string or None if no specific event
+        """
+        status_event_map = {
+            FlightStatus.LANDED: EVENT_FLIGHT_LANDED,
+            FlightStatus.DEPARTED: EVENT_FLIGHT_DEPARTED,
+            FlightStatus.DELAYED: EVENT_FLIGHT_DELAYED,
+            FlightStatus.CANCELLED: EVENT_FLIGHT_CANCELLED,
+            FlightStatus.BOARDING: EVENT_FLIGHT_BOARDING,
+            FlightStatus.GATE_CLOSED: EVENT_FLIGHT_GATE_CLOSED,
+            FlightStatus.FINAL_CALL: EVENT_FLIGHT_FINAL_CALL,
+        }
+        return status_event_map.get(new_status)
+
+    def _should_fire_event(self, flight: Flight) -> bool:
+        """Check if event should be fired for this flight.
+
+        Args:
+            flight: Flight to check
+
+        Returns:
+            True if event should be fired
+        """
+        if not self._events_enabled:
+            return False
+
+        # Fire for all flights if enabled
+        if self._events_all_flights:
+            return True
+
+        # Fire only for tracked flights
+        return flight.flight_number.upper() in self._tracked_flights
+
+    def _fire_event(self, event_type: str, flight: Flight, old_status: FlightStatus | None = None) -> None:
+        """Fire a flight event to Home Assistant.
+
+        Args:
+            event_type: Type of event to fire
+            flight: Flight object
+            old_status: Previous status (optional)
+        """
+        event_data = {
+            "flight_number": flight.flight_number,
+            "airline": flight.airline,
+            "scheduled_time": flight.scheduled_time,
+            "status": flight.status.value,
+            "direction": flight.direction,
+        }
+
+        # Add optional fields
+        if flight.expected_time:
+            event_data["expected_time"] = flight.expected_time
+        if flight.delay_minutes is not None:
+            event_data["delay_minutes"] = flight.delay_minutes
+        if flight.origin:
+            event_data["origin"] = flight.origin
+        if flight.destination:
+            event_data["destination"] = flight.destination
+        if old_status:
+            event_data["old_status"] = old_status.value
+
+        self.hass.bus.fire(event_type, event_data)
+
+        _LOGGER.info(
+            "Fired event %s for flight %s (status: %s)",
+            event_type,
+            flight.flight_number,
+            flight.status.value,
+        )
+
+    def _process_state_changes(self, all_flights: list[Flight]) -> None:
+        """Process state changes and fire events.
+
+        Args:
+            all_flights: List of all current flights (before filtering)
+        """
+        if not self._events_enabled:
+            return
+
+        # Detect changes
+        changes = self._state_tracker.detect_changes(all_flights)
+
+        for change in changes:
+            if not self._should_fire_event(change.flight):
+                continue
+
+            # Get specific event type for status change
+            event_type = self._get_event_type(change.new_status)
+
+            # Fire specific event if available
+            if event_type:
+                self._fire_event(event_type, change.flight, change.old_status)
+
+            # Always fire generic status_changed event
+            if change.old_status != change.new_status:
+                self._fire_event(
+                    EVENT_FLIGHT_STATUS_CHANGED,
+                    change.flight,
+                    change.old_status,
+                )
