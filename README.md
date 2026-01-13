@@ -151,6 +151,8 @@ automation:
 
 ## Example Output
 
+> 💡 **See [EXAMPLES.md](EXAMPLES.md) for more detailed examples including automations, scripts, and advanced use cases!**
+
 When displayed in Home Assistant, the boards would look like this:
 
 **Arrivals Board Example:**
