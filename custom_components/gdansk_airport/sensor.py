@@ -189,11 +189,15 @@ class GdanskAirportSensor(CoordinatorEntity[GdanskAirportCoordinator], SensorEnt
         Returns:
             Sensor value
         """
-        if not self.coordinator.data:
+        if not self.coordinator.data or not isinstance(self.coordinator.data, dict):
             return None
 
         if self.entity_description.value_fn:
-            return self.entity_description.value_fn(self.coordinator.data)
+            try:
+                return self.entity_description.value_fn(self.coordinator.data)
+            except (KeyError, TypeError, AttributeError) as err:
+                _LOGGER.debug("Error getting sensor value for %s: %s", self.entity_description.key, err)
+                return None
 
         return None
 
@@ -204,11 +208,15 @@ class GdanskAirportSensor(CoordinatorEntity[GdanskAirportCoordinator], SensorEnt
         Returns:
             Dictionary of attributes
         """
-        if not self.coordinator.data:
+        if not self.coordinator.data or not isinstance(self.coordinator.data, dict):
             return {}
 
         if self.entity_description.attributes_fn:
-            return self.entity_description.attributes_fn(self.coordinator.data)
+            try:
+                return self.entity_description.attributes_fn(self.coordinator.data)
+            except (KeyError, TypeError, AttributeError) as err:
+                _LOGGER.debug("Error getting sensor attributes for %s: %s", self.entity_description.key, err)
+                return {}
 
         return {}
 
