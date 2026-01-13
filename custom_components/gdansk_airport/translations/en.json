@@ -13,6 +13,7 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to airport website",
+      "timeout_connect": "Timeout connecting to airport website (check your network connection)",
       "unknown": "Unknown error"
     }
   },
@@ -26,7 +27,10 @@
           "hide_landed": "Hide landed/departed flights",
           "hide_cancelled": "Hide cancelled flights",
           "airlines_filter": "Filter airlines (comma separated)",
-          "destinations_filter": "Filter destinations (comma separated)"
+          "destinations_filter": "Filter destinations (comma separated)",
+          "events_enabled": "Enable flight events",
+          "events_all_flights": "Fire events for all flights",
+          "tracked_flights": "Tracked flights (comma separated)"
         }
       }
     }

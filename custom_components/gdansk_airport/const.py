@@ -16,6 +16,21 @@ CONF_HIDE_CANCELLED: Final = "hide_cancelled"
 CONF_AIRLINES_FILTER: Final = "airlines_filter"
 CONF_DESTINATIONS_FILTER: Final = "destinations_filter"
 
+# Events options (v2)
+CONF_TRACKED_FLIGHTS: Final = "tracked_flights"
+CONF_EVENTS_ENABLED: Final = "events_enabled"
+CONF_EVENTS_ALL_FLIGHTS: Final = "events_all_flights"
+
+# Event types (v2)
+EVENT_FLIGHT_LANDED: Final = "gdansk_airport_flight_landed"
+EVENT_FLIGHT_DEPARTED: Final = "gdansk_airport_flight_departed"
+EVENT_FLIGHT_DELAYED: Final = "gdansk_airport_flight_delayed"
+EVENT_FLIGHT_CANCELLED: Final = "gdansk_airport_flight_cancelled"
+EVENT_FLIGHT_STATUS_CHANGED: Final = "gdansk_airport_flight_status_changed"
+EVENT_FLIGHT_BOARDING: Final = "gdansk_airport_flight_boarding"
+EVENT_FLIGHT_GATE_CLOSED: Final = "gdansk_airport_flight_gate_closed"
+EVENT_FLIGHT_FINAL_CALL: Final = "gdansk_airport_flight_final_call"
+
 # Direction options
 DIRECTION_ARRIVALS: Final = "arrivals"
 DIRECTION_DEPARTURES: Final = "departures"

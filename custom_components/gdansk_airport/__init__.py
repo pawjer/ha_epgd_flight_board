@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import CONF_DIRECTION, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .coordinator import GdanskAirportCoordinator
+from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,7 +48,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Store coordinator
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    hass.data[DOMAIN][entry.entry_id] = {
+        "coordinator": coordinator,
+    }
+
+    # Set up services (only once for all instances)
+    if len(hass.data[DOMAIN]) == 1:
+        await async_setup_services(hass)
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -65,7 +72,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         hass: Home Assistant instance
         entry: Config entry
     """
-    coordinator: GdanskAirportCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: GdanskAirportCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     coordinator.update_options(entry.options)
     await coordinator.async_request_refresh()
 
@@ -83,8 +90,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # Remove coordinator
+    # Remove coordinator and cleanup
     if unload_ok:
+        coordinator: GdanskAirportCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+
+        # Close curl_cffi session
+        await coordinator.session.close()
+
         hass.data[DOMAIN].pop(entry.entry_id)
+
+        # Unload services when last instance is removed
+        if not hass.data[DOMAIN]:
+            await async_unload_services(hass)
 
     return unload_ok

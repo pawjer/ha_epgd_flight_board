@@ -5,24 +5,26 @@ import asyncio
 import logging
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
+from curl_cffi.requests import AsyncSession
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     CONF_AIRLINES_FILTER,
     CONF_DESTINATIONS_FILTER,
     CONF_DIRECTION,
+    CONF_EVENTS_ALL_FLIGHTS,
+    CONF_EVENTS_ENABLED,
     CONF_HIDE_CANCELLED,
     CONF_HIDE_LANDED,
     CONF_MAX_FLIGHTS,
     CONF_SCAN_INTERVAL,
     CONF_TIME_WINDOW,
+    CONF_TRACKED_FLIGHTS,
     DEFAULT_HIDE_CANCELLED,
     DEFAULT_HIDE_LANDED,
     DEFAULT_MAX_FLIGHTS,
@@ -55,20 +57,30 @@ async def validate_connection(hass: HomeAssistant) -> bool:
         True if connection is successful
 
     Raises:
-        aiohttp.ClientError: On connection error
+        Exception: On connection error or timeout
     """
-    session = async_get_clientsession(hass)
-
-    try:
-        # Try to fetch arrivals page
-        await asyncio.wait_for(
-            fetch_flights(session, DIRECTION_ARRIVALS),
-            timeout=30.0,
-        )
-        return True
-    except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-        _LOGGER.error("Failed to connect to airport website: %s", err)
-        raise
+    async with AsyncSession() as session:
+        try:
+            # Try to fetch arrivals page
+            _LOGGER.debug("Validating connection to airport website: %s", URL_ARRIVALS)
+            await fetch_flights(session, DIRECTION_ARRIVALS)
+            _LOGGER.debug("Connection validation successful")
+            return True
+        except asyncio.TimeoutError as err:
+            _LOGGER.error(
+                "Timeout connecting to airport website %s after 30s: %s",
+                URL_ARRIVALS,
+                type(err).__name__,
+            )
+            raise
+        except Exception as err:
+            _LOGGER.error(
+                "Failed to connect to airport website %s: %s - %s",
+                URL_ARRIVALS,
+                type(err).__name__,
+                str(err) or "No error message available",
+            )
+            raise
 
 
 class GdanskAirportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -106,13 +118,12 @@ class GdanskAirportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data=user_input,
                 )
 
-            except aiohttp.ClientError:
-                errors["base"] = "cannot_connect"
             except asyncio.TimeoutError:
+                _LOGGER.warning("Timeout connecting to airport website during setup")
+                errors["base"] = "timeout_connect"
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.warning("Error connecting to airport website: %s", type(err).__name__)
                 errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
 
         # Show form
         data_schema = vol.Schema(
@@ -215,6 +226,19 @@ class GdanskAirportOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_DESTINATIONS_FILTER,
                     default=options.get(CONF_DESTINATIONS_FILTER, ""),
+                ): str,
+                # Events configuration (v2)
+                vol.Optional(
+                    CONF_EVENTS_ENABLED,
+                    default=options.get(CONF_EVENTS_ENABLED, False),
+                ): bool,
+                vol.Optional(
+                    CONF_EVENTS_ALL_FLIGHTS,
+                    default=options.get(CONF_EVENTS_ALL_FLIGHTS, False),
+                ): bool,
+                vol.Optional(
+                    CONF_TRACKED_FLIGHTS,
+                    default=options.get(CONF_TRACKED_FLIGHTS, ""),
                 ): str,
             }
         )

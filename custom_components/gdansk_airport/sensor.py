@@ -133,7 +133,7 @@ async def async_setup_entry(
         entry: Config entry
         async_add_entities: Callback to add entities
     """
-    coordinator: GdanskAirportCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: GdanskAirportCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
     # Get direction from config entry
     direction = entry.data.get("direction", DIRECTION_BOTH)

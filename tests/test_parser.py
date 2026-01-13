@@ -2,7 +2,6 @@
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
-import aiohttp
 import pytest
 
 from custom_components.gdansk_airport.const import (
@@ -196,16 +195,12 @@ class TestFetchFlights:
 
     async def test_fetch_arrivals_success(self, arrivals_html):
         """Test successful fetch of arrivals."""
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=arrivals_html)
+        mock_response = Mock()
+        mock_response.text = arrivals_html
         mock_response.raise_for_status = Mock()
 
-        mock_context = AsyncMock()
-        mock_context.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_context.__aexit__ = AsyncMock(return_value=None)
-
         mock_session = AsyncMock()
-        mock_session.get = Mock(return_value=mock_context)
+        mock_session.get = AsyncMock(return_value=mock_response)
 
         flights = await fetch_flights(mock_session, DIRECTION_ARRIVALS)
 
@@ -214,16 +209,12 @@ class TestFetchFlights:
 
     async def test_fetch_departures_success(self, departures_html):
         """Test successful fetch of departures."""
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=departures_html)
+        mock_response = Mock()
+        mock_response.text = departures_html
         mock_response.raise_for_status = Mock()
 
-        mock_context = AsyncMock()
-        mock_context.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_context.__aexit__ = AsyncMock(return_value=None)
-
         mock_session = AsyncMock()
-        mock_session.get = Mock(return_value=mock_context)
+        mock_session.get = AsyncMock(return_value=mock_response)
 
         flights = await fetch_flights(mock_session, DIRECTION_DEPARTURES)
 
@@ -232,13 +223,10 @@ class TestFetchFlights:
 
     async def test_fetch_http_error(self):
         """Test handling HTTP error."""
-        mock_context = AsyncMock()
-        mock_context.__aenter__.side_effect = aiohttp.ClientError("Connection error")
-
         mock_session = AsyncMock()
-        mock_session.get = Mock(return_value=mock_context)
+        mock_session.get = AsyncMock(side_effect=Exception("Connection error"))
 
-        with pytest.raises(aiohttp.ClientError):
+        with pytest.raises(Exception):
             await fetch_flights(mock_session, DIRECTION_ARRIVALS)
 
 
@@ -307,7 +295,7 @@ class TestFetchAllFlights:
             "custom_components.gdansk_airport.parser.fetch_flights"
         ) as mock_fetch:
             mock_fetch.side_effect = [
-                aiohttp.ClientError("Error"),
+                Exception("Error"),
                 [],
             ]
 
