@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-01-13
+
+### Added
+- **Flight Events System** - Fire Home Assistant events for flight status changes
+- Event types: `flight_landed`, `flight_departed`, `flight_delayed`, `flight_cancelled`, `flight_boarding`, `flight_gate_closed`, `flight_final_call`, `flight_status_changed`
+- **Flight State Tracking** - Automatically detect changes between updates
+- **Flight Tracking Configuration** - Track specific flights by number
+- **Events Options** in config flow:
+  - `events_enabled` - Enable/disable event firing
+  - `events_all_flights` - Fire events for all flights or only tracked ones
+  - `tracked_flights` - Comma-separated list of flight numbers to track
+- **Services** for dynamic flight tracking:
+  - `gdansk_airport.track_flight` - Add flight to tracking list
+  - `gdansk_airport.untrack_flight` - Remove flight from tracking list
+- Event data includes: flight_number, airline, scheduled_time, expected_time, status, delay_minutes, origin/destination, old_status
+
+### Technical
+- New `state_tracker.py` module with FlightStateTracker class
+- Extended coordinator with event dispatching logic
+- Services registered/unregistered automatically with integration lifecycle
+- Comprehensive unit tests for state tracking (11 tests)
+
 ## [1.0.0] - 2026-01-13
 
 ### Added
