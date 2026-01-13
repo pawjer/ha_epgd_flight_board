@@ -26,7 +26,10 @@
           "hide_landed": "Ukryj wylądowane/wystartowane",
           "hide_cancelled": "Ukryj odwołane",
           "airlines_filter": "Filtruj linie lotnicze (po przecinku)",
-          "destinations_filter": "Filtruj kierunki (po przecinku)"
+          "destinations_filter": "Filtruj kierunki (po przecinku)",
+          "events_enabled": "Włącz eventy lotów",
+          "events_all_flights": "Eventy dla wszystkich lotów",
+          "tracked_flights": "Śledzone loty (po przecinku)"
         }
       }
     }
