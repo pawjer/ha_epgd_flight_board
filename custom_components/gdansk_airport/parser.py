@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import html
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -100,6 +102,91 @@ def _calculate_delay(scheduled_time: str, expected_time: str | None) -> int | No
         return None
 
 
+def _parse_status_from_remarks(remarks: str, remarks_status: int, direction: str) -> FlightStatus:
+    """Parse flight status from remarks and remarksStatus code.
+
+    Args:
+        remarks: Remarks text (e.g., "wylądował", "oczekiwany 14:31")
+        remarks_status: Status code from API
+        direction: Flight direction (arrivals/departures)
+
+    Returns:
+        FlightStatus enum
+
+    remarksStatus codes observed:
+    1 = expected/on-time
+    2 = landed/departed (completed)
+    3 = delayed (oczekiwany with time != scheduled)
+    4 = cancelled (observed in other data)
+    5 = scheduled/no status yet
+    """
+    # Map remarksStatus codes to flight status
+    if remarks_status == 2:
+        # Completed flight
+        return FlightStatus.LANDED if direction == DIRECTION_ARRIVALS else FlightStatus.DEPARTED
+    elif remarks_status == 4:
+        return FlightStatus.CANCELLED
+    elif remarks_status == 3:
+        # Delayed (expected time differs from scheduled)
+        return FlightStatus.DELAYED
+    elif remarks_status == 1:
+        return FlightStatus.EXPECTED
+    elif remarks_status == 5:
+        # Scheduled, no specific status
+        return FlightStatus.EXPECTED
+
+    # Fallback: try to parse from remarks text
+    if remarks:
+        parsed = parse_status(remarks)
+        if parsed != FlightStatus.UNKNOWN:
+            return parsed
+
+    return FlightStatus.UNKNOWN
+
+
+def _extract_json_from_react_props(soup: BeautifulSoup) -> dict[str, Any] | None:
+    """Extract JSON data from Symfony UX React component props.
+
+    The website embeds flight data in a React component as HTML-encoded JSON:
+    <div data-symfony--ux-react--react-props-value="{&quot;arrivals&quot;:...}">
+
+    Args:
+        soup: BeautifulSoup parsed HTML
+
+    Returns:
+        Decoded JSON data or None if not found
+    """
+    try:
+        # Find the React component container
+        react_container = soup.find("div", {"data-controller": "symfony--ux-react--react"})
+
+        if not react_container:
+            _LOGGER.warning("React component container not found")
+            return None
+
+        # Extract the props data attribute
+        props_data = react_container.get("data-symfony--ux-react--react-props-value")
+
+        if not props_data:
+            _LOGGER.warning("React props data attribute not found")
+            return None
+
+        # Decode HTML entities
+        decoded_data = html.unescape(props_data)
+
+        # Parse JSON
+        json_data = json.loads(decoded_data)
+
+        return json_data
+
+    except json.JSONDecodeError as err:
+        _LOGGER.error("Failed to parse JSON from React props: %s", err)
+        return None
+    except Exception as err:
+        _LOGGER.error("Error extracting JSON from React props: %s", err)
+        return None
+
+
 def _extract_time_from_status(status_text: str) -> str | None:
     """Extract time from status text like 'OPÓŹNIONY 00:32'.
 
@@ -119,8 +206,82 @@ def _extract_time_from_status(status_text: str) -> str | None:
     return None
 
 
+def _parse_flight_from_json(flight_data: dict[str, Any], direction: str) -> Flight | None:
+    """Parse a single flight from JSON data.
+
+    Args:
+        flight_data: Dictionary with flight data from JSON
+        direction: "arrivals" or "departures"
+
+    Returns:
+        Flight object or None if parsing fails
+
+    JSON structure:
+    {
+        "origin": "PAFOS",
+        "remarks": "wylądował",
+        "dateTime": "2026-02-16T13:20:00+01:00",
+        "carrierName": "RYANAIR",
+        "expectedDateTime": "2026-02-16T14:09:00+01:00",
+        "flight": "FR 3554",
+        "remarksStatus": 2
+    }
+    """
+    try:
+        # Extract required fields
+        flight_number = flight_data.get("flight")
+        if not flight_number:
+            return None
+
+        airline = flight_data.get("carrierName", "")
+        location = flight_data.get("origin" if direction == DIRECTION_ARRIVALS else "destination", "")
+
+        # Parse scheduled time from ISO datetime
+        date_time_str = flight_data.get("dateTime")
+        if not date_time_str:
+            return None
+
+        # Parse ISO format: "2026-02-16T13:20:00+01:00"
+        date_time = datetime.fromisoformat(date_time_str)
+        scheduled_time = date_time.strftime("%H:%M")
+
+        # Parse expected time if present
+        expected_time = None
+        expected_date_time_str = flight_data.get("expectedDateTime")
+        if expected_date_time_str:
+            expected_date_time = datetime.fromisoformat(expected_date_time_str)
+            expected_time = expected_date_time.strftime("%H:%M")
+
+        # Parse status
+        remarks = flight_data.get("remarks", "")
+        remarks_status = flight_data.get("remarksStatus", 5)
+        status = _parse_status_from_remarks(remarks, remarks_status, direction)
+
+        # Calculate delay
+        delay_minutes = _calculate_delay(scheduled_time, expected_time)
+
+        # Create flight object
+        flight = Flight(
+            scheduled_time=scheduled_time,
+            expected_time=expected_time,
+            origin=location if direction == DIRECTION_ARRIVALS else None,
+            destination=location if direction == DIRECTION_DEPARTURES else None,
+            airline=airline,
+            flight_number=flight_number,
+            status=status,
+            delay_minutes=delay_minutes,
+            direction=direction,
+        )
+
+        return flight
+
+    except (ValueError, KeyError) as err:
+        _LOGGER.debug("Failed to parse flight from JSON: %s", err)
+        return None
+
+
 def _parse_flight_element(element: Any, direction: str) -> Flight | None:
-    """Parse a single flight element from HTML.
+    """Parse a single flight element from HTML (legacy method).
 
     Args:
         element: BeautifulSoup element representing a flight row
@@ -128,6 +289,9 @@ def _parse_flight_element(element: Any, direction: str) -> Flight | None:
 
     Returns:
         Flight object or None if parsing fails
+
+    NOTE: This is the old parsing method for HTML elements.
+    The website now uses JSON data, so this is kept as fallback only.
     """
     try:
         # Extract scheduled time
@@ -192,34 +356,72 @@ def _parse_flight_element(element: Any, direction: str) -> Flight | None:
         return None
 
 
-def _parse_html(html: str, direction: str) -> list[Flight]:
+def _parse_html(html_content: str, direction: str) -> list[Flight]:
     """Parse HTML and extract flights.
 
+    Tries to extract JSON data from React props first (new format),
+    falls back to HTML scraping if not found (legacy format).
+
     Args:
-        html: Raw HTML content
-        direction: "arrival" or "departure"
+        html_content: Raw HTML content
+        direction: "arrivals" or "departures"
 
     Returns:
         List of Flight objects
     """
     try:
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html_content, "html.parser")
 
-        # Find all flight elements
+        # Try new JSON-based format first
+        json_data = _extract_json_from_react_props(soup)
+
+        if json_data:
+            _LOGGER.debug("Using JSON data extraction (new format)")
+
+            # Get the flights array for this direction
+            flights_key = direction  # "arrivals" or "departures"
+            flights_json = json_data.get(flights_key)
+
+            if flights_json is None:
+                _LOGGER.warning("No %s data found in JSON", direction)
+                return []
+
+            # The flights data might be a JSON string (double-encoded)
+            if isinstance(flights_json, str):
+                try:
+                    flights_data = json.loads(flights_json)
+                except json.JSONDecodeError as err:
+                    _LOGGER.error("Failed to parse flights JSON string: %s", err)
+                    return []
+            else:
+                flights_data = flights_json
+
+            # Parse each flight from JSON
+            flights = []
+            for flight_data in flights_data:
+                flight = _parse_flight_from_json(flight_data, direction)
+                if flight:
+                    flights.append(flight)
+
+            _LOGGER.info("Parsed %d flights for %s from JSON", len(flights), direction)
+            return flights
+
+        # Fallback to old HTML scraping method
+        _LOGGER.debug("Using HTML scraping (legacy format)")
         flight_elements = soup.find_all("div", class_="table__element")
 
         if not flight_elements:
             _LOGGER.warning("No flight elements found in HTML")
             return []
 
-        # Parse each flight
+        # Parse each flight from HTML
         flights = []
         for element in flight_elements:
             flight = _parse_flight_element(element, direction)
             if flight:
                 flights.append(flight)
 
-        _LOGGER.debug("Parsed %d flights for %s", len(flights), direction)
+        _LOGGER.debug("Parsed %d flights for %s from HTML", len(flights), direction)
         return flights
 
     except Exception as err:

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **CRITICAL: Parser Updated for New Website Structure** - Airport website changed from HTML elements to React/Symfony UX with JSON data
+- Parser now extracts flight data from JSON embedded in React component props
+- Updated status parsing to use remarksStatus codes instead of Polish text
+- Maintains backward compatibility with old HTML format as fallback
+- All 42 tests passing with new parser implementation
+
+### Technical
+- Added JSON extraction from `data-symfony--ux-react--react-props-value` attribute
+- New `_parse_flight_from_json()` function for JSON-based flight parsing
+- New `_parse_status_from_remarks()` function for status code mapping
+- Legacy HTML parsing kept as fallback for compatibility
+
 ## [2.0.0] - 2026-01-13
 
 ### Added
