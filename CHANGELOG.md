@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-03-20
+
+### Fixed
+- **Parser: explicit mapping for remarksStatus codes 7 and 10** - Airport website introduced new departure status codes (7 = gate_closed, 10 = check_in) not previously seen. Added explicit mappings to avoid reliance on Polish text fallback.
+
 ## [2.0.1] - 2026-02-16
 
 ### Fixed
