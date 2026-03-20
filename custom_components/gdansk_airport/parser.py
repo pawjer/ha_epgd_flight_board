@@ -134,6 +134,10 @@ def _parse_status_from_remarks(remarks: str, remarks_status: int, direction: str
     elif remarks_status == 5:
         # Scheduled, no specific status
         return FlightStatus.EXPECTED
+    elif remarks_status == 7:
+        return FlightStatus.GATE_CLOSED
+    elif remarks_status == 10:
+        return FlightStatus.CHECK_IN
 
     # Fallback: try to parse from remarks text
     if remarks:
