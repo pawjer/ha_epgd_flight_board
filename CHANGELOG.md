@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-06-04
+
+### Fixed
+- **CRITICAL: Both sensors reported 0 flights** - The airport website now renders multiple React components sharing the same `data-controller`. A `ScheduleTabLinks` component (props: only `currentPage`) is emitted *before* the `Schedules` component that carries the flight payload. The parser grabbed the first match, found no `arrivals`/`departures` keys, and silently returned empty lists. The parser now scans all React containers and selects the one whose props actually contain the flight data. Added regression tests covering the two-component layout.
+
 ## [2.0.2] - 2026-03-20
 
 ### Fixed
