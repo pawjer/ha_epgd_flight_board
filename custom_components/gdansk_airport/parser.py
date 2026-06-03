@@ -161,31 +161,51 @@ def _extract_json_from_react_props(soup: BeautifulSoup) -> dict[str, Any] | None
         Decoded JSON data or None if not found
     """
     try:
-        # Find the React component container
-        react_container = soup.find("div", {"data-controller": "symfony--ux-react--react"})
+        # The page renders several React components sharing the same
+        # data-controller (e.g. "ScheduleTabLinks" with only a "currentPage"
+        # prop, then "Schedules" with the actual flight payload). Pick the one
+        # whose props actually contain the flight arrays instead of blindly
+        # taking the first match.
+        containers = soup.find_all(
+            "div", {"data-controller": "symfony--ux-react--react"}
+        )
 
-        if not react_container:
+        if not containers:
             _LOGGER.warning("React component container not found")
             return None
 
-        # Extract the props data attribute
-        props_data = react_container.get("data-symfony--ux-react--react-props-value")
+        fallback: dict[str, Any] | None = None
+        for container in containers:
+            props_data = container.get(
+                "data-symfony--ux-react--react-props-value"
+            )
+            if not props_data:
+                continue
 
-        if not props_data:
+            try:
+                json_data = json.loads(html.unescape(props_data))
+            except json.JSONDecodeError as err:
+                _LOGGER.debug("Skipping React props that are not valid JSON: %s", err)
+                continue
+
+            if isinstance(json_data, dict) and (
+                "arrivals" in json_data or "departures" in json_data
+            ):
+                return json_data
+
+            # Remember the first decodable container as a last resort.
+            if fallback is None:
+                fallback = json_data
+
+        if fallback is None:
             _LOGGER.warning("React props data attribute not found")
-            return None
+        else:
+            _LOGGER.warning(
+                "No React component with flight data found; "
+                "site structure may have changed"
+            )
+        return fallback
 
-        # Decode HTML entities
-        decoded_data = html.unescape(props_data)
-
-        # Parse JSON
-        json_data = json.loads(decoded_data)
-
-        return json_data
-
-    except json.JSONDecodeError as err:
-        _LOGGER.error("Failed to parse JSON from React props: %s", err)
-        return None
     except Exception as err:
         _LOGGER.error("Error extracting JSON from React props: %s", err)
         return None

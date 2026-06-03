@@ -34,6 +34,18 @@ def departures_html():
     return (FIXTURES_DIR / "departures_sample.html").read_text()
 
 
+@pytest.fixture
+def arrivals_react_html():
+    """Load arrivals sample using the current two-React-component layout."""
+    return (FIXTURES_DIR / "arrivals_react_sample.html").read_text()
+
+
+@pytest.fixture
+def departures_react_html():
+    """Load departures sample using the current two-React-component layout."""
+    return (FIXTURES_DIR / "departures_react_sample.html").read_text()
+
+
 class TestCalculateDelay:
     """Tests for _calculate_delay function."""
 
@@ -134,6 +146,35 @@ class TestParseHtml:
         """Test parsing invalid HTML."""
         flights = _parse_html("<html><body>Invalid</body></html>", DIRECTION_ARRIVALS)
         assert flights == []
+
+    def test_parse_react_arrivals_with_tablinks_first(self, arrivals_react_html):
+        """The live page renders a ScheduleTabLinks React component (props
+        only ``currentPage``) BEFORE the Schedules component that carries the
+        flight payload. The parser must skip the first one and read the second,
+        otherwise both sensors silently report zero flights.
+        """
+        flights = _parse_html(arrivals_react_html, DIRECTION_ARRIVALS)
+
+        assert len(flights) == 2
+        assert all(f.direction == DIRECTION_ARRIVALS for f in flights)
+        assert all(f.origin is not None for f in flights)
+        assert all(f.destination is None for f in flights)
+        assert flights[0].flight_number == "FR 8272"
+        assert flights[0].origin == "ZADAR"
+        assert flights[0].status == FlightStatus.LANDED
+        # second flight is delayed (remarksStatus 3, expected != scheduled)
+        assert flights[1].flight_number == "LO 3922"
+        assert flights[1].status == FlightStatus.DELAYED
+        assert flights[1].delay_minutes == 31
+
+    def test_parse_react_departures_with_tablinks_first(self, departures_react_html):
+        """Same container-selection guard for departures."""
+        flights = _parse_html(departures_react_html, DIRECTION_DEPARTURES)
+
+        assert len(flights) == 1
+        assert flights[0].flight_number == "W6 1706"
+        assert flights[0].destination == "LONDYN"
+        assert flights[0].origin is None
 
 
 class TestParseFlightElement:
