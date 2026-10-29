@@ -138,14 +138,14 @@ class TestParseHtml:
         assert all(f.origin is None for f in flights)
 
     def test_parse_empty_html(self):
-        """Test parsing empty HTML."""
-        flights = _parse_html("", DIRECTION_ARRIVALS)
-        assert flights == []
+        """A page without flight data is an error, not an empty board."""
+        with pytest.raises(ValueError):
+            _parse_html("", DIRECTION_ARRIVALS)
 
     def test_parse_invalid_html(self):
-        """Test parsing invalid HTML."""
-        flights = _parse_html("<html><body>Invalid</body></html>", DIRECTION_ARRIVALS)
-        assert flights == []
+        """A page without flight data is an error, not an empty board."""
+        with pytest.raises(ValueError):
+            _parse_html("<html><body>Invalid</body></html>", DIRECTION_ARRIVALS)
 
     def test_parse_react_arrivals_with_tablinks_first(self, arrivals_react_html):
         """The live page renders a ScheduleTabLinks React component (props
@@ -358,6 +358,6 @@ class TestFetchAllFlights:
             mock_session = AsyncMock()
             result = await fetch_all_flights(mock_session)
 
-            # Should return empty list for failed direction
-            assert result[DIRECTION_ARRIVALS] == []
+            # Failed direction is None (not []), so the coordinator keeps cache
+            assert result[DIRECTION_ARRIVALS] is None
             assert result[DIRECTION_DEPARTURES] == []

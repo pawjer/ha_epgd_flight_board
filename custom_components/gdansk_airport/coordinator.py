@@ -208,8 +208,9 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             filtered.append(flight)
 
-        # Sort by scheduled time
-        filtered.sort(key=lambda f: f.scheduled_time)
+        # Keep the airport's order: it is chronological across midnight
+        # (..., 23:55, 00:05, ...). Sorting the "HH:MM" strings put tomorrow's
+        # early flights first and max_flights then cut today's later ones.
 
         # Limit to max_flights
         return filtered[: self.max_flights]
@@ -237,10 +238,17 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not upcoming:
             return None
 
-        # Sort by expected or scheduled time
-        upcoming.sort(key=lambda f: f.expected_time or f.scheduled_time)
-
+        # Flights are in the airport's chronological order (see _filter_flights)
         return upcoming[0]
+
+    def _direction_or_cached(self, direction: str, flights: list[Flight] | None) -> list[Flight]:
+        """Filter fresh flights, or reuse the last data for a direction that failed."""
+        if flights is not None:
+            return self._filter_flights(flights)
+        if self._is_cache_valid():
+            _LOGGER.warning("Fetching %s failed - keeping cached %s", direction, direction)
+            return self.data.get(direction, [])
+        return []
 
     def _is_cache_valid(self) -> bool:
         """Check if cached data is still valid.
@@ -284,23 +292,43 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 fetch_departures=fetch_departures,
             )
 
+            # A direction that failed to fetch comes back as None
+            failed = [
+                key
+                for key, wanted in (
+                    (DIRECTION_ARRIVALS, fetch_arrivals),
+                    (DIRECTION_DEPARTURES, fetch_departures),
+                )
+                if wanted and result.get(key) is None
+            ]
+            if failed and len(failed) == fetch_arrivals + fetch_departures:
+                return self._handle_update_error(
+                    "Fetch failed", RuntimeError(f"Failed to fetch {', '.join(failed)}")
+                )
+
             # Process state changes for events (before filtering)
             all_flights = (
-                result.get(DIRECTION_ARRIVALS, []) + result.get(DIRECTION_DEPARTURES, [])
+                (result.get(DIRECTION_ARRIVALS) or []) + (result.get(DIRECTION_DEPARTURES) or [])
             )
             self._process_state_changes(all_flights)
 
-            # Filter flights
-            arrivals = self._filter_flights(result.get(DIRECTION_ARRIVALS, []))
-            departures = self._filter_flights(result.get(DIRECTION_DEPARTURES, []))
+            # Filter flights; a failed direction keeps its previous data
+            # instead of being emptied (one board vanished on every timeout)
+            arrivals = self._direction_or_cached(
+                DIRECTION_ARRIVALS, result.get(DIRECTION_ARRIVALS)
+            )
+            departures = self._direction_or_cached(
+                DIRECTION_DEPARTURES, result.get(DIRECTION_DEPARTURES)
+            )
 
             # Get next flights
             next_arrival = self._get_next_flight(arrivals) if arrivals else None
             next_departure = self._get_next_flight(departures) if departures else None
 
-            # Update timestamp
+            # Update timestamp (only a fully successful fetch refreshes the cache age)
             now = datetime.now()
-            self._last_successful_update = now
+            if not failed:
+                self._last_successful_update = now
 
             data = {
                 DIRECTION_ARRIVALS: arrivals,
@@ -308,7 +336,7 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "next_arrival": next_arrival,
                 "next_departure": next_departure,
                 "last_updated": now.isoformat(),
-                "data_source": "live",
+                "data_source": "partial_cache" if failed else "live",
                 "cache_age_seconds": 0,
             }
 
@@ -319,6 +347,9 @@ class GdanskAirportCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
             return data
+
+        except UpdateFailed:
+            raise
 
         except CurlTimeout as err:
             return self._handle_update_error("Timeout", err)
