@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2026-10-29
+
+### Fixed
+- Today's later flights were missing from the sensors: flights were sorted as
+  "HH:MM" strings, so tomorrow's early-morning flights (00:05-06:30) came first
+  and `max_flights` cut the rest of today. The airport's chronological order is
+  now kept, and `next_flight` no longer points at a flight after midnight.
+- A timeout or a page without flight data emptied that direction's sensor (one
+  board vanished for 5-10 min). A failed direction now keeps its cached flights
+  (`data_source: partial_cache`), and a page without data counts as a failed fetch.
+
 ## [2.0.3] - 2026-06-04
 
 ### Fixed

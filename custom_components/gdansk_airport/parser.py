@@ -407,16 +407,14 @@ def _parse_html(html_content: str, direction: str) -> list[Flight]:
             flights_json = json_data.get(flights_key)
 
             if flights_json is None:
-                _LOGGER.warning("No %s data found in JSON", direction)
-                return []
+                raise ValueError(f"No {direction} data found in JSON")
 
             # The flights data might be a JSON string (double-encoded)
             if isinstance(flights_json, str):
                 try:
                     flights_data = json.loads(flights_json)
                 except json.JSONDecodeError as err:
-                    _LOGGER.error("Failed to parse flights JSON string: %s", err)
-                    return []
+                    raise ValueError(f"Failed to parse {direction} JSON string: {err}") from err
             else:
                 flights_data = flights_json
 
@@ -435,8 +433,7 @@ def _parse_html(html_content: str, direction: str) -> list[Flight]:
         flight_elements = soup.find_all("div", class_="table__element")
 
         if not flight_elements:
-            _LOGGER.warning("No flight elements found in HTML")
-            return []
+            raise ValueError(f"No {direction} flight elements found in HTML")
 
         # Parse each flight from HTML
         flights = []
@@ -449,8 +446,10 @@ def _parse_html(html_content: str, direction: str) -> list[Flight]:
         return flights
 
     except Exception as err:
+        # A page without flight data is a failed fetch, not "no flights":
+        # raising lets fetch_flights retry and the coordinator keep cached data.
         _LOGGER.error("Failed to parse HTML: %s", err)
-        return []
+        raise
 
 
 async def fetch_flights(
@@ -528,7 +527,7 @@ async def fetch_all_flights(
     session: AsyncSession,
     fetch_arrivals: bool = True,
     fetch_departures: bool = True,
-) -> dict[str, list[Flight]]:
+) -> dict[str, list[Flight] | None]:
     """Fetch both arrivals and departures.
 
     Args:
@@ -537,7 +536,9 @@ async def fetch_all_flights(
         fetch_departures: Whether to fetch departures
 
     Returns:
-        Dictionary with 'arrivals' and 'departures' keys containing flight lists
+        Dictionary with 'arrivals' and 'departures' keys containing flight lists.
+        A direction that was requested but failed to fetch is None (not []),
+        so the caller can tell "no flights" from "fetch failed".
     """
     tasks = []
     keys = []
@@ -560,7 +561,7 @@ async def fetch_all_flights(
         for key, result in zip(keys, results):
             if isinstance(result, Exception):
                 _LOGGER.error("Failed to fetch %s: %s", key, result)
-                output[key] = []
+                output[key] = None
             else:
                 output[key] = result
 
@@ -574,4 +575,7 @@ async def fetch_all_flights(
 
     except Exception as err:
         _LOGGER.error("Unexpected error in fetch_all_flights: %s", err)
-        return {DIRECTION_ARRIVALS: [], DIRECTION_DEPARTURES: []}
+        return {
+            DIRECTION_ARRIVALS: None if fetch_arrivals else [],
+            DIRECTION_DEPARTURES: None if fetch_departures else [],
+        }
